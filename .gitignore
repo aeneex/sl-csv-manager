@@ -1,0 +1,27 @@
+# Build directory
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Compiled object files & executables
+*.obj
+*.o
+*.a
+*.lib
+*.ninja
+.ninja_*
+*.exe
+
+# Output directories created by the application during runtime
+format done/
+split done/
+original files/
+done/
+
+# IDE / Editor configuration
+.vscode/
+.vs/
+.idea/
+*.user
+*.suo
