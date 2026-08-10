@@ -1,17 +1,18 @@
-# Build directory
-build/
+# Intermediate CMake build files
 CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
+build/CMakeFiles/
+build/CMakeCache.txt
+build/cmake_install.cmake
+build/.ninja_*
+build/build.ninja
 
-# Compiled object files & executables
+# Compiled object and library files
 *.obj
 *.o
 *.a
 *.lib
 *.ninja
 .ninja_*
-*.exe
 
 # Output directories created by the application during runtime
 format done/
