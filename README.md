@@ -1,12 +1,27 @@
-# SLMAN - CSV Formatter & Splitter (C++)
+# SearchLeads CSV Manager (`slman`)
 
 A lightweight, high-performance C++ tool featuring **both a modern dark-monotone GUI (`slman_GUI.exe`) and an interactive CLI (`slman.exe`)**. It transforms arbitrary CSV column schemas into a standardized 35-column technical schema, prunes empty columns, and splits CSV files into equal parts or by maximum row counts.
 
 ---
 
-## 🖥️ Graphical Interface (`slman_GUI.exe`)
+## ⚡ Quick 1-Click Installation (No Tools Required)
 
-`slman_GUI.exe` is a native Windows Win32 application (~830 KB, ~5-10 MB RAM, 0% idle CPU) styled in a sleek, flat dark-monotone aesthetic:
+Precompiled, fully standalone binaries are already included in this repository. **You do not need CMake, Python, or a C++ compiler to install and run the app.**
+
+1. Clone or download this repository.
+2. Double-click **`install.bat`**.
+
+That's it! `install.bat` automatically:
+- Installs the app to `%LOCALAPPDATA%\Programs\slman\`
+- Creates a **SearchLeads CSV Manager** shortcut on your Desktop
+- Creates Start Menu shortcuts (**SearchLeads CSV Manager**, **slman CLI**, **Uninstall**)
+- Registers `slman` to your User `PATH` so you can use it from any terminal.
+
+---
+
+## 🖥️ Graphical Interface
+
+The GUI is an ultra-lightweight native Windows application (~870 KB, ~5-10 MB RAM, 0% idle CPU) styled in a sleek, flat dark-monotone aesthetic:
 
 - **Format CSV Tab**:
   - Format single CSV files or entire folders in bulk.
@@ -28,65 +43,12 @@ A lightweight, high-performance C++ tool featuring **both a modern dark-monotone
 
 ---
 
-## ⚡ Shared Architecture
+## 💻 CLI & Interactive Console Usage
 
-Both the CLI and GUI share the exact same core backend engine:
+You can run `slman` from any terminal or double-click `slman.bat`:
 
-```
-                  ┌──────────────────────────────────────────────┐
-                  │              SHARED CORE ENGINE              │
-                  ├──────────────────────────────────────────────┤
-                  │ • config_manager.cpp / .hpp                  │
-                  │ • schema_transformer.cpp / .hpp              │
-                  │ • csv_splitter.cpp / .hpp                    │
-                  │ • csv_engine.cpp / .hpp                      │
-                  │ • dialog_utils.cpp / .hpp                    │
-                  └──────────────────────┬───────────────────────┘
-                                         │
-                    ┌────────────────────┴────────────────────┐
-                    ▼                                         ▼
-         ┌─────────────────────┐                   ┌─────────────────────┐
-         │      slman.exe      │                   │    slman_GUI.exe    │
-         │  (Terminal / CLI)   │                   │    (Windows GUI)    │
-         └─────────────────────┘                   └─────────────────────┘
-```
-
-Any update to schema mappings or core algorithms automatically takes effect across both tools.
-
----
-
-## 📦 Installation & Deployment
-
-Running `build.bat` or `install.bat` automatically deploys a standalone installation into your Windows Programs directory:
-
-```
-%LOCALAPPDATA%\Programs\slman\
-```
-*(e.g., `C:\Users\<User>\AppData\Local\Programs\slman`)*
-
-### Installed Components:
-- `slman_GUI.exe` — Standalone GUI application
-- `slman.exe` — Standalone CLI / Console application
-- `mapping_config.json` — Schema definition and column alias mappings
-- `uninstall.bat` — Independent uninstaller
-- `slman.bat` — Quick terminal launcher
-
-### Automatic Setup:
-1. **Desktop Shortcut**: Creates a `SLMAN GUI` shortcut.
-2. **Start Menu Entries**: Creates `SLMAN GUI`, `SLMAN CLI`, and `Uninstall slman`.
-3. **User PATH Integration**: Registers the folder to your `PATH` so you can run `slman` from any terminal or PowerShell prompt.
-
-To completely remove the installation at any time, run `uninstall.bat`.
-
----
-
-## 🚀 Quick Start
-
-### 1. Launching the GUI
-Double-click `slman_GUI.exe` or open **SLMAN GUI** from your Desktop.
-
-### 2. Interactive CLI Mode (Menu-Driven)
-Run `slman` from any terminal, or launch `slman.bat`:
+### 1. Interactive Menu Mode
+Running `slman` without arguments opens the interactive menu:
 ```
 Select an operation:
 
@@ -98,7 +60,7 @@ Select an operation:
   [6] Exit
 ```
 
-### 3. CLI Command-Line Arguments
+### 2. Command-Line Arguments
 
 #### Format CSV Schema:
 ```bash
@@ -160,7 +122,9 @@ slman bulk "C:\data\leads" --split 3
 
 ---
 
-## 🛠️ Building from Source
+## 🛠️ Building from Source (Developers Only)
+
+If you modify the C++ source code in `src/` and wish to recompile the project:
 
 ### Prerequisites:
 - CMake 3.20+
@@ -170,4 +134,14 @@ slman bulk "C:\data\leads" --split 3
 ```bat
 build.bat
 ```
-*(Compiles both `slman.exe` and `slman_GUI.exe`, verifies linking, and automatically updates `%LOCALAPPDATA%\Programs\slman`).*
+*(Compiles statically linked binaries to `build/` and auto-invokes `install.bat`).*
+
+---
+
+## 🗑️ Uninstallation
+
+To completely remove the application, shortcuts, and PATH registration at any time, run:
+```bat
+uninstall.bat
+```
+*(or launch the **Uninstall** shortcut from the Start Menu).*
