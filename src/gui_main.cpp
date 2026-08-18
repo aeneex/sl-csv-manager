@@ -42,7 +42,7 @@ enum ControlID {
     ID_FMT_MODE_FOLDER = 1102,
     ID_FMT_EDIT_PATH = 1103,
     ID_FMT_BTN_BROWSE = 1104,
-    ID_FMT_CHK_DROP_EMPTY = 1105,
+    ID_FMT_CHK_CREATE_ALL = 1105,
     ID_FMT_BTN_RUN = 1106,
 
     // Split Controls
@@ -121,7 +121,7 @@ struct AppState {
 
     int activeTab = 0; // 0: Format, 1: Split, 2: Manage Mappings
     bool fmtIsFolder = false;
-    bool fmtDropEmpty = true;
+    bool fmtCreateAllColumns = true;
 
     bool splitIsFolder = false;
     bool splitIsPartsMode = true;
@@ -146,7 +146,7 @@ struct AppState {
     HWND hFmtBtnFolder = nullptr;
     HWND hFmtEditPath = nullptr;
     HWND hFmtBtnBrowse = nullptr;
-    HWND hFmtChkDropEmpty = nullptr;
+    HWND hFmtChkCreateAll = nullptr;
     HWND hFmtBtnRun = nullptr;
 
     // Split Controls
@@ -363,6 +363,11 @@ static void run_format_task(std::string input_path_str, bool is_folder, bool dro
             post_progress(100, 100);
             post_log(" [Success] Formatted " + std::to_string(stats.rows_processed) + " rows.");
             post_log("           Mapped columns: " + std::to_string(stats.columns_mapped) + " / " + std::to_string(stats.total_target_columns));
+            if (!drop_empty) {
+                post_log("           Output schema:  All " + std::to_string(stats.total_target_columns) + " columns generated (unmapped kept empty).");
+            } else {
+                post_log("           Output schema:  " + std::to_string(stats.columns_mapped) + " active columns (empty columns dropped).");
+            }
             post_log("           Saved into: " + output_path.string());
             post_completed(true);
         } else {
@@ -403,7 +408,7 @@ static void run_format_task(std::string input_path_str, bool is_folder, bool dro
             sl::TransformStats stats;
             if (transformer.transform_file(csv, output_path, &stats, drop_empty)) {
                 success_count++;
-                post_log(" [OK] Formatted: " + csv.filename().string() + " (" + std::to_string(stats.rows_processed) + " rows)");
+                post_log(" [OK] Formatted: " + csv.filename().string() + " (" + std::to_string(stats.rows_processed) + " rows, " + std::to_string(stats.columns_mapped) + "/" + std::to_string(stats.total_target_columns) + " mapped)");
             } else {
                 post_log(" [Failed] Error formatting: " + csv.filename().string());
             }
@@ -644,9 +649,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             WS_CHILD | BS_OWNERDRAW, 590, 248, 130, 36, hWnd, (HMENU)ID_FMT_BTN_BROWSE, g_app.hInstance, NULL);
         g_app.formatControls.push_back(g_app.hFmtBtnBrowse);
 
-        g_app.hFmtChkDropEmpty = CreateWindowW(L"BUTTON", L"Automatically delete completely empty columns",
-            WS_CHILD | BS_OWNERDRAW, 50, 312, 450, 26, hWnd, (HMENU)ID_FMT_CHK_DROP_EMPTY, g_app.hInstance, NULL);
-        g_app.formatControls.push_back(g_app.hFmtChkDropEmpty);
+        g_app.hFmtChkCreateAll = CreateWindowW(L"BUTTON", L"Create all columns (keep unmapped columns empty)",
+            WS_CHILD | BS_OWNERDRAW, 50, 312, 450, 26, hWnd, (HMENU)ID_FMT_CHK_CREATE_ALL, g_app.hInstance, NULL);
+        g_app.formatControls.push_back(g_app.hFmtChkCreateAll);
 
         g_app.hFmtBtnRun = CreateWindowW(L"BUTTON", L"Format to Technical Schema",
             WS_CHILD | BS_OWNERDRAW, 50, 395, 670, 48, hWnd, (HMENU)ID_FMT_BTN_RUN, g_app.hInstance, NULL);
@@ -885,8 +890,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             draw_flat_button(pDIS, L"Clear Log", false, false);
             return TRUE;
         }
-        if (id == ID_FMT_CHK_DROP_EMPTY) {
-            draw_flat_checkbox(pDIS, L"Automatically delete completely empty columns", g_app.fmtDropEmpty);
+        if (id == ID_FMT_CHK_CREATE_ALL) {
+            draw_flat_checkbox(pDIS, L"Create all columns (keep unmapped columns empty)", g_app.fmtCreateAllColumns);
             return TRUE;
         }
         if (id == ID_SPLIT_CHK_KEEP_HEADER) {
@@ -1116,9 +1121,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         // Format Checkbox Toggle
-        if (id == ID_FMT_CHK_DROP_EMPTY && code == BN_CLICKED) {
-            g_app.fmtDropEmpty = !g_app.fmtDropEmpty;
-            InvalidateRect(g_app.hFmtChkDropEmpty, NULL, TRUE);
+        if (id == ID_FMT_CHK_CREATE_ALL && code == BN_CLICKED) {
+            g_app.fmtCreateAllColumns = !g_app.fmtCreateAllColumns;
+            InvalidateRect(g_app.hFmtChkCreateAll, NULL, TRUE);
             return 0;
         }
 
@@ -1200,7 +1205,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 return 0;
             }
 
-            bool drop_empty = g_app.fmtDropEmpty;
+            bool drop_empty = !g_app.fmtCreateAllColumns;
             bool is_folder = g_app.fmtIsFolder;
 
             g_app.isRunning = true;

@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
 project(slman LANGUAGES CXX RC)
 
+# Prevent in-source builds so the root directory stays clean
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+    message(FATAL_ERROR "In-source builds are not allowed. Please build inside a dedicated build folder, e.g. 'cmake -B build' or run build.bat.")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

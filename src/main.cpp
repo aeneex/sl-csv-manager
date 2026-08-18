@@ -58,8 +58,12 @@ void print_help() {
     std::cout << "Usage:\n";
     std::cout << "  slman [command] [options]\n\n";
     std::cout << "Commands:\n";
-    std::cout << "  format <input.csv> [-o <output.csv>] [-c <config.json>]\n";
+    std::cout << "  format <input.csv> [-o <output.csv>] [-c <config.json>] [--drop-empty]\n";
     std::cout << "      Formats raw CSV columns into the standard 35-column schema.\n";
+    std::cout << "      (By default, creates all 35 schema columns with unmapped fields empty).\n";
+    std::cout << "      Flags:\n";
+    std::cout << "        --drop-empty    Delete/omit completely empty unmapped columns\n";
+    std::cout << "        --all-columns   Generate all schema columns (default)\n";
     std::cout << "      (Alias: transform)\n\n";
     std::cout << "  split <input.csv> [--parts <N>] [--max-rows <R>] [--no-headers] [--backup]\n";
     std::cout << "      Splits CSV into N parts (default 2) and saves to 'split done/'.\n";
@@ -68,7 +72,7 @@ void print_help() {
     std::cout << "        --max-rows <R>  Maximum data rows per file chunk\n";
     std::cout << "        --no-headers    Do not repeat header in parts 2..N (only part 1 has header)\n";
     std::cout << "        --backup        Move original file to 'original files/'\n\n";
-    std::cout << "  bulk [dir_path] [--format] [--split <N>] [--no-headers]\n";
+    std::cout << "  bulk [dir_path] [--format] [--split <N>] [--no-headers] [--drop-empty]\n";
     std::cout << "      Batch processes all CSV files in a directory.\n\n";
     std::cout << "  init-config\n";
     std::cout << "      Generates the default 'mapping_config.json' file.\n\n";
@@ -76,7 +80,7 @@ void print_help() {
     std::cout << "      Starts the interactive console wizard.\n";
 }
 
-bool do_format_file(const fs::path& input_path, fs::path output_path, const sl::SchemaConfig& config) {
+bool do_format_file(const fs::path& input_path, fs::path output_path, const sl::SchemaConfig& config, bool drop_empty = false) {
     if (output_path.empty()) {
         fs::path parent = input_path.has_parent_path() ? input_path.parent_path() : fs::current_path();
         fs::path format_done_dir = parent / "format done";
@@ -91,13 +95,18 @@ bool do_format_file(const fs::path& input_path, fs::path output_path, const sl::
     sl::SchemaTransformer transformer(config);
     sl::TransformStats stats;
 
-    if (!transformer.transform_file(input_path, output_path, &stats)) {
+    if (!transformer.transform_file(input_path, output_path, &stats, drop_empty)) {
         std::cerr << " [ERROR] Failed to format file: " << input_path.string() << "\n";
         return false;
     }
 
     std::cout << " [SUCCESS] Formatted " << stats.rows_processed << " rows.\n";
     std::cout << "           Mapped columns: " << stats.columns_mapped << " / " << stats.total_target_columns << "\n";
+    if (!drop_empty) {
+        std::cout << "           Output schema:  All " << stats.total_target_columns << " columns created (unmapped kept empty)\n";
+    } else {
+        std::cout << "           Output schema:  " << stats.columns_mapped << " active columns (empty columns dropped)\n";
+    }
     std::cout << "           Saved to: " << output_path.string() << "\n\n";
     return true;
 }
@@ -135,7 +144,7 @@ bool do_split_file(const fs::path& input_path, size_t parts, size_t max_rows, bo
     return true;
 }
 
-void do_bulk_dir(const fs::path& dir_path, bool format_mode, size_t split_parts, bool keep_header_in_all, const sl::SchemaConfig& config) {
+void do_bulk_dir(const fs::path& dir_path, bool format_mode, size_t split_parts, bool keep_header_in_all, const sl::SchemaConfig& config, bool drop_empty = false) {
     if (!fs::exists(dir_path) || !fs::is_directory(dir_path)) {
         std::cerr << " [ERROR] Directory does not exist: " << dir_path.string() << "\n";
         return;
@@ -165,7 +174,7 @@ void do_bulk_dir(const fs::path& dir_path, bool format_mode, size_t split_parts,
     for (const auto& csv : csv_files) {
         bool ok = false;
         if (format_mode) {
-            ok = do_format_file(csv, "", config);
+            ok = do_format_file(csv, "", config, drop_empty);
         } else if (split_parts > 0) {
             ok = do_split_file(csv, split_parts, 0, keep_header_in_all, false);
         }
@@ -206,8 +215,9 @@ void interactive_menu(const sl::SchemaConfig& config) {
             std::cout << "\nOpening File Explorer to select CSV file...\n";
             fs::path p = sl::DialogUtils::select_csv_file("Select CSV File to Format");
             if (!p.empty() && fs::exists(p)) {
-                std::cout << "Selected file: " << p.string() << "\n\n";
-                do_format_file(p, "", config);
+                std::cout << "Selected file: " << p.string() << "\n";
+                bool create_all = prompt_yes_no_default_yes("Create all schema columns (keep unmapped empty)? (Y/n) [default Y]: ");
+                do_format_file(p, "", config, !create_all);
             } else {
                 std::cout << "No file selected (operation cancelled).\n\n";
             }
@@ -233,8 +243,9 @@ void interactive_menu(const sl::SchemaConfig& config) {
             std::cout << "\nOpening File Explorer to select folder...\n";
             fs::path p = sl::DialogUtils::select_folder("Select Folder Containing CSV Files to Format");
             if (!p.empty() && fs::exists(p)) {
-                std::cout << "Selected folder: " << p.string() << "\n\n";
-                do_bulk_dir(p, true, 0, true, config);
+                std::cout << "Selected folder: " << p.string() << "\n";
+                bool create_all = prompt_yes_no_default_yes("Create all schema columns (keep unmapped empty)? (Y/n) [default Y]: ");
+                do_bulk_dir(p, true, 0, true, config, !create_all);
             } else {
                 std::cout << "No folder selected (operation cancelled).\n\n";
             }
@@ -314,12 +325,13 @@ int main(int argc, char* argv[]) {
     if (cmd == "format" || cmd == "transform") {
         if (argc < 3) {
             std::cerr << "Error: format requires an input CSV file.\n";
-            std::cerr << "Usage: slman format <input.csv> [-o <output.csv>] [-c <config.json>]\n";
+            std::cerr << "Usage: slman format <input.csv> [-o <output.csv>] [-c <config.json>] [--drop-empty]\n";
             return 1;
         }
 
         fs::path input_file = clean_input_path(argv[2]);
         fs::path output_file;
+        bool drop_empty = false;
 
         for (int i = 3; i < argc; ++i) {
             std::string arg = argv[i];
@@ -328,10 +340,14 @@ int main(int argc, char* argv[]) {
             } else if ((arg == "-c" || arg == "--config") && i + 1 < argc) {
                 fs::path custom_cfg = clean_input_path(argv[++i]);
                 config = sl::ConfigManager::load_or_create_default(custom_cfg);
+            } else if (arg == "--drop-empty" || arg == "--prune-empty") {
+                drop_empty = true;
+            } else if (arg == "--all-columns" || arg == "--keep-all") {
+                drop_empty = false;
             }
         }
 
-        return do_format_file(input_file, output_file, config) ? 0 : 1;
+        return do_format_file(input_file, output_file, config, drop_empty) ? 0 : 1;
     }
 
     if (cmd == "split") {
@@ -371,11 +387,16 @@ int main(int argc, char* argv[]) {
         bool format_mode = false;
         size_t split_parts = 0;
         bool keep_headers = true;
+        bool drop_empty = false;
 
         for (int i = 2; i < argc; ++i) {
             std::string arg = argv[i];
             if (arg == "--format" || arg == "--transform") {
                 format_mode = true;
+            } else if (arg == "--drop-empty" || arg == "--prune-empty") {
+                drop_empty = true;
+            } else if (arg == "--all-columns" || arg == "--keep-all") {
+                drop_empty = false;
             } else if (arg == "--split") {
                 split_parts = 2;
                 if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -395,7 +416,7 @@ int main(int argc, char* argv[]) {
             format_mode = true; // Default bulk action is format
         }
 
-        do_bulk_dir(dir_path, format_mode, split_parts, keep_headers, config);
+        do_bulk_dir(dir_path, format_mode, split_parts, keep_headers, config, drop_empty);
         return 0;
     }
 

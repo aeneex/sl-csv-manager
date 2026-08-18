@@ -117,13 +117,11 @@ std::vector<std::vector<std::string>> SchemaTransformer::transform_rows(
         stats->unmapped_target_columns.clear();
         stats->rows_processed = (input_rows.size() > 1) ? input_rows.size() - 1 : 0;
 
-        for (size_t idx : active_indices) {
-            stats->mapped_columns.push_back(config_.target_headers[idx]);
-        }
-        for (const auto& target_hdr : config_.target_headers) {
-            std::string clean_target = CSVReader::to_lower(CSVReader::trim(target_hdr));
-            if (col_map.find(clean_target) == col_map.end()) {
-                stats->unmapped_target_columns.push_back(target_hdr);
+        for (size_t c = 0; c < config_.target_headers.size(); ++c) {
+            if (source_indices[c] >= 0) {
+                stats->mapped_columns.push_back(config_.target_headers[c]);
+            } else {
+                stats->unmapped_target_columns.push_back(config_.target_headers[c]);
             }
         }
         stats->columns_mapped = stats->mapped_columns.size();
@@ -235,13 +233,11 @@ bool SchemaTransformer::transform_file(
         stats->unmapped_target_columns.clear();
         stats->rows_processed = data_rows.size();
 
-        for (size_t idx : active_indices) {
-            stats->mapped_columns.push_back(config_.target_headers[idx]);
-        }
-        for (const auto& target_hdr : config_.target_headers) {
-            std::string clean_target = CSVReader::to_lower(CSVReader::trim(target_hdr));
-            if (col_map.find(clean_target) == col_map.end()) {
-                stats->unmapped_target_columns.push_back(target_hdr);
+        for (size_t c = 0; c < config_.target_headers.size(); ++c) {
+            if (source_indices[c] >= 0) {
+                stats->mapped_columns.push_back(config_.target_headers[c]);
+            } else {
+                stats->unmapped_target_columns.push_back(config_.target_headers[c]);
             }
         }
         stats->columns_mapped = stats->mapped_columns.size();
