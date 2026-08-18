@@ -65,15 +65,21 @@ void print_help() {
     std::cout << "        --drop-empty    Delete/omit completely empty unmapped columns\n";
     std::cout << "        --all-columns   Generate all schema columns (default)\n";
     std::cout << "      (Alias: transform)\n\n";
-    std::cout << "  split <input.csv> [--parts <N>] [--max-rows <R>] [--no-headers] [--backup]\n";
-    std::cout << "      Splits CSV into N parts (default 2) and saves to 'split done/'.\n";
+    std::cout << "  split <input.csv> [--max-rows <R>] [--parts <N>] [--no-headers] [--backup]\n";
+    std::cout << "      Splits CSV by max rows per file or into N parts and saves to 'split done/'.\n";
     std::cout << "      Flags:\n";
-    std::cout << "        --parts <N>     Number of parts to split into (default 2)\n";
-    std::cout << "        --max-rows <R>  Maximum data rows per file chunk\n";
+    std::cout << "        --max-rows <R>  Maximum data rows per file chunk (e.g. 1000)\n";
+    std::cout << "        --parts <N>     Number of parts to split into (default 2 if not using --max-rows)\n";
     std::cout << "        --no-headers    Do not repeat header in parts 2..N (only part 1 has header)\n";
     std::cout << "        --backup        Move original file to 'original files/'\n\n";
-    std::cout << "  bulk [dir_path] [--format] [--split <N>] [--no-headers] [--drop-empty]\n";
-    std::cout << "      Batch processes all CSV files in a directory.\n\n";
+    std::cout << "  bulk [dir_path] [--format] [--max-rows <R>] [--split <N>] [--no-headers] [--drop-empty]\n";
+    std::cout << "      Batch processes all CSV files in a directory.\n";
+    std::cout << "      Flags:\n";
+    std::cout << "        --format        Format CSV files into technical schema (default action)\n";
+    std::cout << "        --max-rows <R>  Split all CSVs into chunks of maximum R rows (e.g. 1000)\n";
+    std::cout << "        --split <N>     Split all CSVs into N parts (default 2)\n";
+    std::cout << "        --no-headers    Do not repeat header in subsequent parts\n";
+    std::cout << "        --drop-empty    Delete/omit completely empty unmapped columns\n\n";
     std::cout << "  init-config\n";
     std::cout << "      Generates the default 'mapping_config.json' file.\n\n";
     std::cout << "  (no arguments)\n";
@@ -144,7 +150,7 @@ bool do_split_file(const fs::path& input_path, size_t parts, size_t max_rows, bo
     return true;
 }
 
-void do_bulk_dir(const fs::path& dir_path, bool format_mode, size_t split_parts, bool keep_header_in_all, const sl::SchemaConfig& config, bool drop_empty = false) {
+void do_bulk_dir(const fs::path& dir_path, bool format_mode, size_t split_parts, size_t split_max_rows, bool keep_header_in_all, const sl::SchemaConfig& config, bool drop_empty = false) {
     if (!fs::exists(dir_path) || !fs::is_directory(dir_path)) {
         std::cerr << " [ERROR] Directory does not exist: " << dir_path.string() << "\n";
         return;
@@ -175,8 +181,8 @@ void do_bulk_dir(const fs::path& dir_path, bool format_mode, size_t split_parts,
         bool ok = false;
         if (format_mode) {
             ok = do_format_file(csv, "", config, drop_empty);
-        } else if (split_parts > 0) {
-            ok = do_split_file(csv, split_parts, 0, keep_header_in_all, false);
+        } else if (split_max_rows > 0 || split_parts > 0) {
+            ok = do_split_file(csv, split_parts, split_max_rows, keep_header_in_all, false);
         }
 
         if (ok) success_count++;
@@ -195,9 +201,9 @@ void interactive_menu(const sl::SchemaConfig& config) {
         print_banner();
         std::cout << "Select an operation:\n\n";
         std::cout << "  [1] Format single CSV file to Technical Schema\n";
-        std::cout << "  [2] Split single CSV file into N parts\n";
+        std::cout << "  [2] Split single CSV file (by max rows or parts)\n";
         std::cout << "  [3] Bulk: Format all CSV files in a folder\n";
-        std::cout << "  [4] Bulk: Split all CSV files in a folder into N parts\n";
+        std::cout << "  [4] Bulk: Split all CSV files in a folder (by max rows or parts)\n";
         std::cout << "  [5] View Target Schema & Mappings\n";
         std::cout << "  [6] Exit\n\n";
         std::cout << "Enter choice (1-6): ";
@@ -225,17 +231,40 @@ void interactive_menu(const sl::SchemaConfig& config) {
             std::cout << "\nOpening File Explorer to select CSV file...\n";
             fs::path p = sl::DialogUtils::select_csv_file("Select CSV File to Split");
             if (!p.empty() && fs::exists(p)) {
-                std::cout << "Selected file: " << p.string() << "\n";
-                std::cout << "Enter number of parts [default 2]: ";
-                std::string parts_str;
-                std::getline(std::cin, parts_str);
-                size_t parts = 2;
-                try {
-                    if (!parts_str.empty()) parts = std::stoul(parts_str);
-                } catch (...) { parts = 2; }
+                std::cout << "Selected file: " << p.string() << "\n\n";
+                std::cout << "Choose split method:\n";
+                std::cout << "  [1] By Maximum Rows per file (e.g. 1000 rows/file) [Default]\n";
+                std::cout << "  [2] Into N equal parts (e.g. 2 parts)\n";
+                std::cout << "Enter split method (1/2) [default 1]: ";
+                std::string mode_str;
+                std::getline(std::cin, mode_str);
+                mode_str = sl::CSVReader::trim(mode_str);
+
+                size_t parts = 0;
+                size_t max_rows = 0;
+
+                if (mode_str == "2") {
+                    std::cout << "Enter number of parts [default 2]: ";
+                    std::string parts_str;
+                    std::getline(std::cin, parts_str);
+                    parts = 2;
+                    try {
+                        if (!parts_str.empty()) parts = std::stoul(parts_str);
+                    } catch (...) { parts = 2; }
+                    if (parts == 0) parts = 2;
+                } else {
+                    std::cout << "Enter max data rows per file [default 1000]: ";
+                    std::string rows_str;
+                    std::getline(std::cin, rows_str);
+                    max_rows = 1000;
+                    try {
+                        if (!rows_str.empty()) max_rows = std::stoul(rows_str);
+                    } catch (...) { max_rows = 1000; }
+                    if (max_rows == 0) max_rows = 1000;
+                }
 
                 bool keep_headers = prompt_yes_no_default_yes("Keep header in all split files? (Y/n) [default Y]: ");
-                do_split_file(p, parts, 0, keep_headers, false);
+                do_split_file(p, parts, max_rows, keep_headers, false);
             } else {
                 std::cout << "No file selected (operation cancelled).\n\n";
             }
@@ -245,7 +274,7 @@ void interactive_menu(const sl::SchemaConfig& config) {
             if (!p.empty() && fs::exists(p)) {
                 std::cout << "Selected folder: " << p.string() << "\n";
                 bool create_all = prompt_yes_no_default_yes("Create all schema columns (keep unmapped empty)? (Y/n) [default Y]: ");
-                do_bulk_dir(p, true, 0, true, config, !create_all);
+                do_bulk_dir(p, true, 0, 0, true, config, !create_all);
             } else {
                 std::cout << "No folder selected (operation cancelled).\n\n";
             }
@@ -253,17 +282,40 @@ void interactive_menu(const sl::SchemaConfig& config) {
             std::cout << "\nOpening File Explorer to select folder...\n";
             fs::path p = sl::DialogUtils::select_folder("Select Folder Containing CSV Files to Split");
             if (!p.empty() && fs::exists(p)) {
-                std::cout << "Selected folder: " << p.string() << "\n";
-                std::cout << "Enter number of parts [default 2]: ";
-                std::string parts_str;
-                std::getline(std::cin, parts_str);
-                size_t parts = 2;
-                try {
-                    if (!parts_str.empty()) parts = std::stoul(parts_str);
-                } catch (...) { parts = 2; }
+                std::cout << "Selected folder: " << p.string() << "\n\n";
+                std::cout << "Choose split method:\n";
+                std::cout << "  [1] By Maximum Rows per file (e.g. 1000 rows/file) [Default]\n";
+                std::cout << "  [2] Into N equal parts (e.g. 2 parts)\n";
+                std::cout << "Enter split method (1/2) [default 1]: ";
+                std::string mode_str;
+                std::getline(std::cin, mode_str);
+                mode_str = sl::CSVReader::trim(mode_str);
+
+                size_t parts = 0;
+                size_t max_rows = 0;
+
+                if (mode_str == "2") {
+                    std::cout << "Enter number of parts [default 2]: ";
+                    std::string parts_str;
+                    std::getline(std::cin, parts_str);
+                    parts = 2;
+                    try {
+                        if (!parts_str.empty()) parts = std::stoul(parts_str);
+                    } catch (...) { parts = 2; }
+                    if (parts == 0) parts = 2;
+                } else {
+                    std::cout << "Enter max data rows per file [default 1000]: ";
+                    std::string rows_str;
+                    std::getline(std::cin, rows_str);
+                    max_rows = 1000;
+                    try {
+                        if (!rows_str.empty()) max_rows = std::stoul(rows_str);
+                    } catch (...) { max_rows = 1000; }
+                    if (max_rows == 0) max_rows = 1000;
+                }
 
                 bool keep_headers = prompt_yes_no_default_yes("Keep header in all split files? (Y/n) [default Y]: ");
-                do_bulk_dir(p, false, parts, keep_headers, config);
+                do_bulk_dir(p, false, parts, max_rows, keep_headers, config);
             } else {
                 std::cout << "No folder selected (operation cancelled).\n\n";
             }
@@ -386,6 +438,7 @@ int main(int argc, char* argv[]) {
         fs::path dir_path = fs::current_path();
         bool format_mode = false;
         size_t split_parts = 0;
+        size_t split_max_rows = 0;
         bool keep_headers = true;
         bool drop_empty = false;
 
@@ -397,10 +450,15 @@ int main(int argc, char* argv[]) {
                 drop_empty = true;
             } else if (arg == "--all-columns" || arg == "--keep-all") {
                 drop_empty = false;
+            } else if ((arg == "--max-rows" || arg == "--split-rows" || arg == "--rows") && i + 1 < argc) {
+                split_max_rows = std::stoul(argv[++i]);
+            } else if (arg == "--parts" && i + 1 < argc) {
+                split_parts = std::stoul(argv[++i]);
             } else if (arg == "--split") {
-                split_parts = 2;
                 if (i + 1 < argc && argv[i + 1][0] != '-') {
                     split_parts = std::stoul(argv[++i]);
+                } else if (split_max_rows == 0 && split_parts == 0) {
+                    split_parts = 2;
                 }
             } else if (arg == "--no-headers") {
                 keep_headers = false;
@@ -412,11 +470,11 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        if (!format_mode && split_parts == 0) {
+        if (!format_mode && split_parts == 0 && split_max_rows == 0) {
             format_mode = true; // Default bulk action is format
         }
 
-        do_bulk_dir(dir_path, format_mode, split_parts, keep_headers, config, drop_empty);
+        do_bulk_dir(dir_path, format_mode, split_parts, split_max_rows, keep_headers, config, drop_empty);
         return 0;
     }
 

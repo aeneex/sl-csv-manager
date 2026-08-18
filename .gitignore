@@ -15,11 +15,12 @@ CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 
-# Runtime CSV output directories
+# Runtime CSV output and config files
 format done/
 split done/
 original files/
 done/
+mapping_config.json
 
 # IDE / Editor configuration
 .vscode/

@@ -52,13 +52,14 @@ Running `slman` without arguments opens the interactive menu:
 ```
 Select an operation:
 
-  [1] Format single CSV file to Technical Schema  --> Opens File Explorer window
-  [2] Split single CSV file into N parts          --> Opens File Explorer window
-  [3] Bulk: Format all CSV files in a folder      --> Opens Folder Explorer window
-  [4] Bulk: Split all CSV files in a folder       --> Opens Folder Explorer window
+  [1] Format single CSV file to Technical Schema      --> Opens File Explorer window
+  [2] Split single CSV file (by max rows or parts)    --> Opens File Explorer window
+  [3] Bulk: Format all CSV files in a folder          --> Opens Folder Explorer window
+  [4] Bulk: Split all CSV files in a folder           --> Opens Folder Explorer window
   [5] View Target Schema & Mappings
   [6] Exit
 ```
+*(Both single and bulk splitting support chunking by **Max Rows per file (e.g. 1000 rows/file)** or into **N equal parts**).*
 
 ### 2. Command-Line Arguments
 
@@ -76,20 +77,23 @@ slman format input.csv -c custom_mapping.json
 
 #### Split CSV:
 ```bash
+# Split by max rows per file (e.g. 1000 rows each, variable number of files)
+slman split input.csv --max-rows 1000
+
 # Split into 2 parts and save into "split done/" folder
 slman split input.csv --parts 2
 
 # Split into 4 parts without repeating headers in parts 2..N
 slman split input.csv --parts 4 --no-headers
-
-# Split by max rows per file (e.g. 5000 rows each)
-slman split input.csv --max-rows 5000
 ```
 
 #### Bulk Folder Processing:
 ```bash
 # Format all CSV files in a folder (saves into <folder>/format done/<filename>)
 slman bulk "C:\data\leads" --format
+
+# Split all CSV files in a folder by max 1000 rows per file
+slman bulk "C:\data\leads" --max-rows 1000
 
 # Split all CSV files in a folder into 3 parts (saves into <folder>/split done/)
 slman bulk "C:\data\leads" --split 3
