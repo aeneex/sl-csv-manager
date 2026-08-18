@@ -1,8 +1,11 @@
-# Build directories and binaries
-build/
+# Build intermediate files
+build/*
+!build/slman.exe
+!build/slman_GUI.exe
+!build/mapping_config.json
+
 bin/
 out/
-*.exe
 *.obj
 *.o
 *.a
