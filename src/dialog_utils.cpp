@@ -155,10 +155,77 @@ std::filesystem::path DialogUtils::select_folder(const std::string& title) {
     return {};
 }
 
+#elif defined(__APPLE__)
+
+#include <cstdio>
+#include <memory>
+#include <array>
+
+namespace {
+    std::string exec_command(const std::string& cmd) {
+        std::array<char, 256> buffer;
+        std::string result;
+        std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+        if (!pipe) return "";
+        while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+            result += buffer.data();
+        }
+        while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) {
+            result.pop_back();
+        }
+        return result;
+    }
+}
+
+std::filesystem::path DialogUtils::select_csv_file(const std::string& title) {
+    std::string script = "osascript -e 'POSIX path of (choose file with prompt \"" + title + "\" of type {\"csv\"})' 2>/dev/null";
+    std::string out = exec_command(script);
+    if (!out.empty() && std::filesystem::exists(out)) {
+        return std::filesystem::path(out);
+    }
+    return {};
+}
+
+std::filesystem::path DialogUtils::select_folder(const std::string& title) {
+    std::string script = "osascript -e 'POSIX path of (choose folder with prompt \"" + title + "\")' 2>/dev/null";
+    std::string out = exec_command(script);
+    if (!out.empty() && std::filesystem::exists(out)) {
+        return std::filesystem::path(out);
+    }
+    return {};
+}
+
 #else
 
-// Non-Windows fallback
+#include <cstdio>
+#include <memory>
+#include <array>
+
+namespace {
+    std::string exec_command(const std::string& cmd) {
+        std::array<char, 256> buffer;
+        std::string result;
+        std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+        if (!pipe) return "";
+        while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+            result += buffer.data();
+        }
+        while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) {
+            result.pop_back();
+        }
+        return result;
+    }
+}
+
 std::filesystem::path DialogUtils::select_csv_file(const std::string& title) {
+    std::string out = exec_command("zenity --file-selection --title=\"" + title + "\" --file-filter=\"*.csv\" 2>/dev/null");
+    if (out.empty()) {
+        out = exec_command("kdialog --getopenfilename . \"*.csv\" --title \"" + title + "\" 2>/dev/null");
+    }
+    if (!out.empty() && std::filesystem::exists(out)) {
+        return std::filesystem::path(out);
+    }
+
     std::cout << title << "\nEnter path: ";
     std::string p;
     std::getline(std::cin, p);
@@ -166,6 +233,14 @@ std::filesystem::path DialogUtils::select_csv_file(const std::string& title) {
 }
 
 std::filesystem::path DialogUtils::select_folder(const std::string& title) {
+    std::string out = exec_command("zenity --file-selection --directory --title=\"" + title + "\" 2>/dev/null");
+    if (out.empty()) {
+        out = exec_command("kdialog --getexistingdirectory . --title \"" + title + "\" 2>/dev/null");
+    }
+    if (!out.empty() && std::filesystem::exists(out)) {
+        return std::filesystem::path(out);
+    }
+
     std::cout << title << "\nEnter folder path: ";
     std::string p;
     std::getline(std::cin, p);
@@ -173,5 +248,6 @@ std::filesystem::path DialogUtils::select_folder(const std::string& title) {
 }
 
 #endif
+
 
 } // namespace sl

@@ -9,13 +9,14 @@ A lightweight, high-performance C++ tool featuring **both a modern dark-monotone
 Precompiled, fully standalone binaries are already included in this repository. **You do not need CMake, Python, or a C++ compiler to install and run the app.**
 
 1. Clone or download this repository.
-2. Double-click **`install.bat`**.
+2. Run the installer for your operating system:
+   - **Windows**: Double-click **`Windows\install.bat`**
+   - **macOS / Linux**: Open Terminal and run `./"MacOS & Linux/install.sh"`
 
-That's it! `install.bat` automatically:
-- Installs the app to `%LOCALAPPDATA%\Programs\slman\`
-- Creates a **SearchLeads CSV Manager** shortcut on your Desktop
-- Creates Start Menu shortcuts (**SearchLeads CSV Manager**, **slman CLI**, **Uninstall**)
-- Registers `slman` to your User `PATH` so you can use it from any terminal.
+That's it! The installer automatically:
+- Installs the app to your system program directory (`%LOCALAPPDATA%\Programs\slman\` on Windows, `~/.local/bin` or `/usr/local/bin` on macOS/Linux)
+- Creates a **SearchLeads CSV Manager** shortcut on your Desktop / Start Menu
+- Registers `slman` to your shell `PATH` so you can use it from any terminal.
 
 ---
 
@@ -45,7 +46,7 @@ The GUI is an ultra-lightweight native Windows application (~870 KB, ~5-10 MB RA
 
 ## 💻 CLI & Interactive Console Usage
 
-You can run `slman` from any terminal or double-click `slman.bat`:
+You can run `slman` from any terminal:
 
 ### 1. Interactive Menu Mode
 Running `slman` without arguments opens the interactive menu:
@@ -132,20 +133,22 @@ If you modify the C++ source code in `src/` and wish to recompile the project:
 
 ### Prerequisites:
 - CMake 3.20+
-- MinGW-w64 (GCC 11+) or MSVC
+- **Windows**: MinGW-w64 (GCC 11+) or MSVC
+- **macOS**: Xcode Command Line Tools (`clang++`)
+- **Linux**: GCC (`g++`) or Clang (`clang++`)
 
-### Build Command:
-```bat
-build.bat
-```
-*(Compiles statically linked binaries to `build/` and auto-invokes `install.bat`).*
+### Build Commands:
+- **Windows**: `Windows\build.bat`
+- **macOS / Linux**: `./"MacOS & Linux/build.sh"`
+
+*(Compiles binaries to `build/Windows/` or `build/MacOS & Linux/` and auto-invokes installer).*
 
 ---
 
 ## 🗑️ Uninstallation
 
-To completely remove the application, shortcuts, and PATH registration at any time, run:
-```bat
-uninstall.bat
-```
-*(or launch the **Uninstall** shortcut from the Start Menu).*
+To completely remove the application, shortcuts, and PATH registration at any time:
+- **Windows**: Run `Windows\uninstall.bat` (or launch the **Uninstall** shortcut from the Start Menu)
+- **macOS / Linux**: Run `./"MacOS & Linux/uninstall.sh"`
+
+

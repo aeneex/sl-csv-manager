@@ -1,7 +1,10 @@
 # Build intermediate files
 build/*
-!build/slman.exe
-!build/slman_GUI.exe
+!build/Windows/
+!build/Windows/slman.exe
+!build/Windows/slman_GUI.exe
+!build/MacOS & Linux/
+!build/MacOS & Linux/slman
 !build/mapping_config.json
 
 bin/
