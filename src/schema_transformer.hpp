@@ -28,14 +28,18 @@ public:
     std::vector<std::vector<std::string>> transform_rows(
         const std::vector<std::vector<std::string>>& input_rows,
         TransformStats* stats = nullptr,
-        bool drop_empty_columns = false) const;
+        bool drop_empty_columns = false,
+        bool concat_name = false,
+        bool indexify = false) const;
 
     // Transform file to file
     bool transform_file(
         const std::filesystem::path& input_path,
         const std::filesystem::path& output_path,
         TransformStats* stats = nullptr,
-        bool drop_empty_columns = false) const;
+        bool drop_empty_columns = false,
+        bool concat_name = false,
+        bool indexify = false) const;
 
     // Build column map from raw input headers
     std::unordered_map<std::string, size_t> build_column_map(

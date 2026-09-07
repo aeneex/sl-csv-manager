@@ -27,6 +27,8 @@ The GUI is an ultra-lightweight native Windows application (~870 KB, ~5-10 MB RA
 - **Format CSV Tab**:
   - Format single CSV files or entire folders in bulk.
   - Automatically prunes completely empty columns.
+  - Optional **Concatenate Name**: Combines `first_name` and `last_name` into the `name` column.
+  - Optional **Indexify**: Fills `id` and `index` columns with unique 36-character random IDs for processed rows.
   - Saves formatted outputs into dedicated `format done/` subfolders without touching original files.
 - **Split CSV Tab**:
   - Split CSVs into $N$ equal parts or by maximum rows per file.
@@ -71,6 +73,9 @@ slman format input.csv
 
 # Format with custom output path
 slman format input.csv -o output.csv
+
+# Format with name concatenation and 36-char ID generation (indexify)
+slman format input.csv --concat-name --indexify
 
 # Format with custom config file
 slman format input.csv -c custom_mapping.json
@@ -133,7 +138,7 @@ If you modify the C++ source code in `src/` and wish to recompile the project:
 
 ### Prerequisites:
 - CMake 3.20+
-- **Windows**: MinGW-w64 (GCC 11+) or MSVC
+- **Windows**: MinGW-w64 (GCC 11+) or MSVC or LLVM (Auto-detected from standard MSYS2/LLVM paths if installed via `winget`)
 - **macOS**: Xcode Command Line Tools (`clang++`)
 - **Linux**: GCC (`g++`) or Clang (`clang++`)
 

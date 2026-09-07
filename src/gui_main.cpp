@@ -43,6 +43,8 @@ enum ControlID {
     ID_FMT_EDIT_PATH = 1103,
     ID_FMT_BTN_BROWSE = 1104,
     ID_FMT_CHK_CREATE_ALL = 1105,
+    ID_FMT_CHK_CONCAT_NAME = 1107,
+    ID_FMT_CHK_INDEXIFY = 1108,
     ID_FMT_BTN_RUN = 1106,
 
     // Split Controls
@@ -122,6 +124,8 @@ struct AppState {
     int activeTab = 0; // 0: Format, 1: Split, 2: Manage Mappings
     bool fmtIsFolder = false;
     bool fmtCreateAllColumns = true;
+    bool fmtConcatName = false;
+    bool fmtIndexify = false;
 
     bool splitIsFolder = false;
     bool splitIsPartsMode = true;
@@ -147,6 +151,8 @@ struct AppState {
     HWND hFmtEditPath = nullptr;
     HWND hFmtBtnBrowse = nullptr;
     HWND hFmtChkCreateAll = nullptr;
+    HWND hFmtChkConcatName = nullptr;
+    HWND hFmtChkIndexify = nullptr;
     HWND hFmtBtnRun = nullptr;
 
     // Split Controls
@@ -337,7 +343,7 @@ static void set_ui_busy(bool busy) {
 }
 
 // Background Worker: Format Task
-static void run_format_task(std::string input_path_str, bool is_folder, bool drop_empty) {
+static void run_format_task(std::string input_path_str, bool is_folder, bool drop_empty, bool concat_name, bool indexify) {
     sl::SchemaConfig config = sl::ConfigManager::load_or_create_default("mapping_config.json");
     fs::path input_path(utf8_to_wstring(input_path_str));
 
@@ -359,7 +365,7 @@ static void run_format_task(std::string input_path_str, bool is_folder, bool dro
 
         sl::SchemaTransformer transformer(config);
         sl::TransformStats stats;
-        if (transformer.transform_file(input_path, output_path, &stats, drop_empty)) {
+        if (transformer.transform_file(input_path, output_path, &stats, drop_empty, concat_name, indexify)) {
             post_progress(100, 100);
             post_log(" [Success] Formatted " + std::to_string(stats.rows_processed) + " rows.");
             post_log("           Mapped columns: " + std::to_string(stats.columns_mapped) + " / " + std::to_string(stats.total_target_columns));
@@ -367,6 +373,12 @@ static void run_format_task(std::string input_path_str, bool is_folder, bool dro
                 post_log("           Output schema:  All " + std::to_string(stats.total_target_columns) + " columns generated (unmapped kept empty).");
             } else {
                 post_log("           Output schema:  " + std::to_string(stats.columns_mapped) + " active columns (empty columns dropped).");
+            }
+            if (concat_name) {
+                post_log("           Name Column:    Concatenated first_name and last_name into name column.");
+            }
+            if (indexify) {
+                post_log("           Indexify:       Generated unique 36-char IDs for 'id' and 'index'.");
             }
             post_log("           Saved into: " + output_path.string());
             post_completed(true);
@@ -406,7 +418,7 @@ static void run_format_task(std::string input_path_str, bool is_folder, bool dro
 
             sl::SchemaTransformer transformer(config);
             sl::TransformStats stats;
-            if (transformer.transform_file(csv, output_path, &stats, drop_empty)) {
+            if (transformer.transform_file(csv, output_path, &stats, drop_empty, concat_name, indexify)) {
                 success_count++;
                 post_log(" [OK] Formatted: " + csv.filename().string() + " (" + std::to_string(stats.rows_processed) + " rows, " + std::to_string(stats.columns_mapped) + "/" + std::to_string(stats.total_target_columns) + " mapped)");
             } else {
@@ -650,8 +662,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         g_app.formatControls.push_back(g_app.hFmtBtnBrowse);
 
         g_app.hFmtChkCreateAll = CreateWindowW(L"BUTTON", L"Create all columns (keep unmapped columns empty)",
-            WS_CHILD | BS_OWNERDRAW, 50, 312, 450, 26, hWnd, (HMENU)ID_FMT_CHK_CREATE_ALL, g_app.hInstance, NULL);
+            WS_CHILD | BS_OWNERDRAW, 50, 300, 450, 24, hWnd, (HMENU)ID_FMT_CHK_CREATE_ALL, g_app.hInstance, NULL);
         g_app.formatControls.push_back(g_app.hFmtChkCreateAll);
+
+        g_app.hFmtChkConcatName = CreateWindowW(L"BUTTON", L"Concatenate first_name and last_name into name column",
+            WS_CHILD | BS_OWNERDRAW, 50, 328, 550, 24, hWnd, (HMENU)ID_FMT_CHK_CONCAT_NAME, g_app.hInstance, NULL);
+        g_app.formatControls.push_back(g_app.hFmtChkConcatName);
+
+        g_app.hFmtChkIndexify = CreateWindowW(L"BUTTON", L"Indexify 'id' and 'index' columns",
+            WS_CHILD | BS_OWNERDRAW, 50, 356, 450, 24, hWnd, (HMENU)ID_FMT_CHK_INDEXIFY, g_app.hInstance, NULL);
+        g_app.formatControls.push_back(g_app.hFmtChkIndexify);
 
         g_app.hFmtBtnRun = CreateWindowW(L"BUTTON", L"Format to Technical Schema",
             WS_CHILD | BS_OWNERDRAW, 50, 395, 670, 48, hWnd, (HMENU)ID_FMT_BTN_RUN, g_app.hInstance, NULL);
@@ -894,6 +914,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             draw_flat_checkbox(pDIS, L"Create all columns (keep unmapped columns empty)", g_app.fmtCreateAllColumns);
             return TRUE;
         }
+        if (id == ID_FMT_CHK_CONCAT_NAME) {
+            draw_flat_checkbox(pDIS, L"Concatenate first_name and last_name into name column", g_app.fmtConcatName);
+            return TRUE;
+        }
+        if (id == ID_FMT_CHK_INDEXIFY) {
+            draw_flat_checkbox(pDIS, L"Indexify 'id' and 'index' columns", g_app.fmtIndexify);
+            return TRUE;
+        }
         if (id == ID_SPLIT_CHK_KEEP_HEADER) {
             draw_flat_checkbox(pDIS, L"Keep header in all split files", g_app.splitKeepHeader);
             return TRUE;
@@ -1126,6 +1154,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             InvalidateRect(g_app.hFmtChkCreateAll, NULL, TRUE);
             return 0;
         }
+        if (id == ID_FMT_CHK_CONCAT_NAME && code == BN_CLICKED) {
+            g_app.fmtConcatName = !g_app.fmtConcatName;
+            InvalidateRect(g_app.hFmtChkConcatName, NULL, TRUE);
+            return 0;
+        }
+        if (id == ID_FMT_CHK_INDEXIFY && code == BN_CLICKED) {
+            g_app.fmtIndexify = !g_app.fmtIndexify;
+            InvalidateRect(g_app.hFmtChkIndexify, NULL, TRUE);
+            return 0;
+        }
 
         // Split Mode Switching
         if (id == ID_SPLIT_MODE_FILE && code == BN_CLICKED) {
@@ -1207,12 +1245,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
             bool drop_empty = !g_app.fmtCreateAllColumns;
             bool is_folder = g_app.fmtIsFolder;
+            bool concat_name = g_app.fmtConcatName;
+            bool indexify = g_app.fmtIndexify;
 
             g_app.isRunning = true;
             set_ui_busy(true);
 
-            std::thread([path_str, is_folder, drop_empty]() {
-                run_format_task(path_str, is_folder, drop_empty);
+            std::thread([path_str, is_folder, drop_empty, concat_name, indexify]() {
+                run_format_task(path_str, is_folder, drop_empty, concat_name, indexify);
             }).detach();
 
             return 0;

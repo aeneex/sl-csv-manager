@@ -46,6 +46,17 @@ bool prompt_yes_no_default_yes(const std::string& prompt_text) {
     return false;
 }
 
+bool prompt_yes_no_default_no(const std::string& prompt_text) {
+    std::cout << prompt_text;
+    std::string ans;
+    std::getline(std::cin, ans);
+    ans = sl::CSVReader::to_lower(sl::CSVReader::trim(ans));
+    if (ans == "y" || ans == "yes") {
+        return true;
+    }
+    return false;
+}
+
 void print_banner() {
     std::cout << "===============================================================\n";
     std::cout << "                             SLMAN                             \n";
@@ -86,7 +97,7 @@ void print_help() {
     std::cout << "      Starts the interactive console wizard.\n";
 }
 
-bool do_format_file(const fs::path& input_path, fs::path output_path, const sl::SchemaConfig& config, bool drop_empty = false) {
+bool do_format_file(const fs::path& input_path, fs::path output_path, const sl::SchemaConfig& config, bool drop_empty = false, bool concat_name = false, bool indexify = false) {
     if (output_path.empty()) {
         fs::path parent = input_path.has_parent_path() ? input_path.parent_path() : fs::current_path();
         fs::path format_done_dir = parent / "format done";
@@ -101,7 +112,7 @@ bool do_format_file(const fs::path& input_path, fs::path output_path, const sl::
     sl::SchemaTransformer transformer(config);
     sl::TransformStats stats;
 
-    if (!transformer.transform_file(input_path, output_path, &stats, drop_empty)) {
+    if (!transformer.transform_file(input_path, output_path, &stats, drop_empty, concat_name, indexify)) {
         std::cerr << " [ERROR] Failed to format file: " << input_path.string() << "\n";
         return false;
     }
@@ -112,6 +123,12 @@ bool do_format_file(const fs::path& input_path, fs::path output_path, const sl::
         std::cout << "           Output schema:  All " << stats.total_target_columns << " columns created (unmapped kept empty)\n";
     } else {
         std::cout << "           Output schema:  " << stats.columns_mapped << " active columns (empty columns dropped)\n";
+    }
+    if (concat_name) {
+        std::cout << "           Name Column:    Concatenated first_name and last_name into name column\n";
+    }
+    if (indexify) {
+        std::cout << "           Indexify:       Generated unique 36-char IDs for 'id' and 'index'\n";
     }
     std::cout << "           Saved to: " << output_path.string() << "\n\n";
     return true;
@@ -150,7 +167,7 @@ bool do_split_file(const fs::path& input_path, size_t parts, size_t max_rows, bo
     return true;
 }
 
-void do_bulk_dir(const fs::path& dir_path, bool format_mode, size_t split_parts, size_t split_max_rows, bool keep_header_in_all, const sl::SchemaConfig& config, bool drop_empty = false) {
+void do_bulk_dir(const fs::path& dir_path, bool format_mode, size_t split_parts, size_t split_max_rows, bool keep_header_in_all, const sl::SchemaConfig& config, bool drop_empty = false, bool concat_name = false, bool indexify = false) {
     if (!fs::exists(dir_path) || !fs::is_directory(dir_path)) {
         std::cerr << " [ERROR] Directory does not exist: " << dir_path.string() << "\n";
         return;
@@ -180,7 +197,7 @@ void do_bulk_dir(const fs::path& dir_path, bool format_mode, size_t split_parts,
     for (const auto& csv : csv_files) {
         bool ok = false;
         if (format_mode) {
-            ok = do_format_file(csv, "", config, drop_empty);
+            ok = do_format_file(csv, "", config, drop_empty, concat_name, indexify);
         } else if (split_max_rows > 0 || split_parts > 0) {
             ok = do_split_file(csv, split_parts, split_max_rows, keep_header_in_all, false);
         }
@@ -223,7 +240,9 @@ void interactive_menu(const sl::SchemaConfig& config) {
             if (!p.empty() && fs::exists(p)) {
                 std::cout << "Selected file: " << p.string() << "\n";
                 bool create_all = prompt_yes_no_default_yes("Create all schema columns (keep unmapped empty)? (Y/n) [default Y]: ");
-                do_format_file(p, "", config, !create_all);
+                bool concat_name = prompt_yes_no_default_no("Concatenate first_name and last_name into name column? (y/N) [default N]: ");
+                bool indexify = prompt_yes_no_default_no("Indexify 'id' and 'index' columns? (y/N) [default N]: ");
+                do_format_file(p, "", config, !create_all, concat_name, indexify);
             } else {
                 std::cout << "No file selected (operation cancelled).\n\n";
             }
@@ -274,7 +293,9 @@ void interactive_menu(const sl::SchemaConfig& config) {
             if (!p.empty() && fs::exists(p)) {
                 std::cout << "Selected folder: " << p.string() << "\n";
                 bool create_all = prompt_yes_no_default_yes("Create all schema columns (keep unmapped empty)? (Y/n) [default Y]: ");
-                do_bulk_dir(p, true, 0, 0, true, config, !create_all);
+                bool concat_name = prompt_yes_no_default_no("Concatenate first_name and last_name into name column? (y/N) [default N]: ");
+                bool indexify = prompt_yes_no_default_no("Indexify 'id' and 'index' columns? (y/N) [default N]: ");
+                do_bulk_dir(p, true, 0, 0, true, config, !create_all, concat_name, indexify);
             } else {
                 std::cout << "No folder selected (operation cancelled).\n\n";
             }
@@ -377,13 +398,15 @@ int main(int argc, char* argv[]) {
     if (cmd == "format" || cmd == "transform") {
         if (argc < 3) {
             std::cerr << "Error: format requires an input CSV file.\n";
-            std::cerr << "Usage: slman format <input.csv> [-o <output.csv>] [-c <config.json>] [--drop-empty]\n";
+            std::cerr << "Usage: slman format <input.csv> [-o <output.csv>] [-c <config.json>] [--drop-empty] [--concat-name] [--indexify]\n";
             return 1;
         }
 
         fs::path input_file = clean_input_path(argv[2]);
         fs::path output_file;
         bool drop_empty = false;
+        bool concat_name = false;
+        bool indexify = false;
 
         for (int i = 3; i < argc; ++i) {
             std::string arg = argv[i];
@@ -396,10 +419,14 @@ int main(int argc, char* argv[]) {
                 drop_empty = true;
             } else if (arg == "--all-columns" || arg == "--keep-all") {
                 drop_empty = false;
+            } else if (arg == "--concat-name" || arg == "--concat-into-name") {
+                concat_name = true;
+            } else if (arg == "--indexify") {
+                indexify = true;
             }
         }
 
-        return do_format_file(input_file, output_file, config, drop_empty) ? 0 : 1;
+        return do_format_file(input_file, output_file, config, drop_empty, concat_name, indexify) ? 0 : 1;
     }
 
     if (cmd == "split") {
@@ -441,6 +468,8 @@ int main(int argc, char* argv[]) {
         size_t split_max_rows = 0;
         bool keep_headers = true;
         bool drop_empty = false;
+        bool concat_name = false;
+        bool indexify = false;
 
         for (int i = 2; i < argc; ++i) {
             std::string arg = argv[i];
@@ -450,6 +479,10 @@ int main(int argc, char* argv[]) {
                 drop_empty = true;
             } else if (arg == "--all-columns" || arg == "--keep-all") {
                 drop_empty = false;
+            } else if (arg == "--concat-name" || arg == "--concat-into-name") {
+                concat_name = true;
+            } else if (arg == "--indexify") {
+                indexify = true;
             } else if ((arg == "--max-rows" || arg == "--split-rows" || arg == "--rows") && i + 1 < argc) {
                 split_max_rows = std::stoul(argv[++i]);
             } else if (arg == "--parts" && i + 1 < argc) {
@@ -474,7 +507,7 @@ int main(int argc, char* argv[]) {
             format_mode = true; // Default bulk action is format
         }
 
-        do_bulk_dir(dir_path, format_mode, split_parts, split_max_rows, keep_headers, config, drop_empty);
+        do_bulk_dir(dir_path, format_mode, split_parts, split_max_rows, keep_headers, config, drop_empty, concat_name, indexify);
         return 0;
     }
 
